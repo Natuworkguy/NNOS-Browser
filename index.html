@@ -43,9 +43,28 @@
     .button-container button:hover {
       background-color: #0056b3;
     }
+
+    .back-button {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      padding: 10px 15px;
+      font-size: 1rem;
+      color: #fff;
+      background-color: #ff4d4d;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    .back-button:hover {
+      background-color: #cc0000;
+    }
   </style>
 </head>
 <body>
+  <button class="back-button" onclick="window.location.href='https://github.com/natuworkguy/NNOS-Browser'">Back to Repository</button>
   <h1>Select Version</h1>
   <div class="button-container">
     <button onclick="window.location.href='https://natuworkguy.github.io/NNOS-Browser/1.0/'">1.0</button>
@@ -53,3 +72,4 @@
   </div>
 </body>
 </html>
+

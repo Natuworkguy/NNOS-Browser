@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NNOS Browser</title>
+    <style>
+      :root {
+        --bg-color: #ffffff;
+        --text-color: #000000;
+        --bar-color: #f1f1f1;
+        --button-color: #e1e1e1;
+        --button-text-color: #000000;
+        --tab-bar-color: #e1e1e1;
+        --tab-color: #d1d1d1;
+        --active-tab-color: #b1b1b1;
+        --link-color: #0000ee;
+      }
+
+      [data-theme="dark"] {
+        --bg-color: #121212;
+        --text-color: #ffffff;
+        --bar-color: #333333;
+        --button-color: #444444;
+        --button-text-color: #ffffff;
+        --tab-bar-color: #333333;
+        --tab-color: #444444;
+        --active-tab-color: #555555;
+        --link-color: #1e90ff;
+      }
+
+      [data-theme="colorful"] {
+        --bg-color: #ffefd5;
+        --text-color: #000080;
+        --bar-color: #ffb6c1;
+        --button-color: #ffa07a;
+        --button-text-color: #008b8b;
+        --tab-bar-color: #db7093;
+        --tab-color: #ff69b4;
+        --active-tab-color: #ff1493;
+        --link-color: #006400;
+      }
+
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        background-color: var(--bg-color);
+        color: var(--text-color);
+      }
+
+      #url-bar {
+        display: flex;
+        padding: 10px;
+        background-color: var(--bar-color);
+      }
+
+      #url-input {
+        flex: 1;
+        padding: 5px;
+        font-size: 16px;
+      }
+
+      #go-button,
+      #back-button,
+      #forward-button,
+      #bookmark-button,
+      #new-tab-button,
+      #settings-button {
+        padding: 5px 10px;
+        font-size: 16px;
+        margin-left: 5px;
+        background-color: var(--button-color);
+        color: var(--button-text-color);
+        border: none;
+        cursor: pointer;
+      }
+
+      #browser-frame {
+        flex: 1;
+        border: none;
+        height: calc(100vh - 100px);
+        /* Adjust height dynamically */
+      }
+
+      #uid-display {
+        position: fixed;
+        bottom: 10px;
+        right: 10px;
+        padding: 5px;
+        background-color: var(--bar-color);
+        font-size: 12px;
+        border-radius: 5px;
+        z-index: 1000;
+      }
+
+      #tabs {
+        display: flex;
+        background-color: var(--tab-bar-color);
+        padding: 5px;
+      }
+
+      .tab {
+        padding: 5px 10px;
+        margin-right: 5px;
+        background-color: var(--tab-color);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+      }
+
+      .tab.active {
+        background-color: var(--active-tab-color);
+      }
+
+      .tab .delete-tab {
+        margin-left: 10px;
+        color: red;
+        font-weight: bold;
+        cursor: pointer;
+      }
+
+      #bookmarks {
+        padding: 10px;
+        background-color: var(--bar-color);
+        display: flex;
+        flex-wrap: wrap;
+      }
+
+      .bookmark {
+        margin-right: 10px;
+        cursor: pointer;
+        color: var(--link-color);
+        display: flex;
+        align-items: center;
+      }
+
+      .bookmark .delete-bookmark {
+        margin-left: 5px;
+        color: red;
+        font-weight: bold;
+        cursor: pointer;
+      }
+
+      #settings-popup {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: var(--bar-color);
+        padding: 20px;
+        border: 1px solid var(--text-color);
+        border-radius: 10px;
+        z-index: 1000;
+      }
+
+      #settings-popup h2 {
+        margin-top: 0;
+      }
+
+      #settings-popup button {
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="url-bar">
+      <button id="back-button">Back</button>
+      <button id="forward-button">Forward</button>
+      <input type="text" id="url-input" placeholder="Enter URL" />
+      <button id="go-button">Go</button>
+      <button id="bookmark-button">Bookmark</button>
+      <button id="new-tab-button">New Tab</button>
+      <button id="settings-button">Settings</button>
+    </div>
+    <div id="tabs"></div>
+    <iframe id="browser-frame"></iframe>
+    <div id="bookmarks"></div>
+    <div id="uid-display"></div>
+    <div id="settings-popup">
+      <h2>Settings</h2>
+      <button id="toggle-theme">Toggle Dark/Light Mode</button>
+      <button id="toggle-color">Toggle Colorful Extension</button>
+      <button id="reset-button">Reset All Data</button>
+      <button id="close-settings">Close</button>
+    </div>
+    <script>
+      const browserFrame = document.getElementById('browser-frame');
+      const urlInput = document.getElementById('url-input');
+      const uidDisplay = document.getElementById('uid-display');
+      const tabsContainer = document.getElementById('tabs');
+      const bookmarksContainer = document.getElementById('bookmarks');
+      const settingsPopup = document.getElementById('settings-popup');
+      let bookmarks = JSON.parse(localStorage.getItem('bookmarks')) || [];
+      let tabs = JSON.parse(localStorage.getItem('tabs')) || [{
+        history: [],
+        currentIndex: -1
+      }];
+      let currentTab = 0;
+      let darkMode = JSON.parse(localStorage.getItem('darkMode')) || false;
+      let colorfulMode = JSON.parse(localStorage.getItem('colorfulMode')) || false;
+
+      function applyTheme() {
+        if (colorfulMode) {
+          document.documentElement.setAttribute('data-theme', 'colorful');
+        } else {
+          document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+        }
+        localStorage.setItem('darkMode', JSON.stringify(darkMode));
+        localStorage.setItem('colorfulMode', JSON.stringify(colorfulMode));
+      }
+
+      function resetAllData() {
+        localStorage.clear();
+        bookmarks = [];
+        tabs = [{
+          history: [],
+          currentIndex: -1
+        }];
+        darkMode = false;
+        colorfulMode = false;
+        applyTheme();
+        updateTabs();
+        updateBookmarks();
+      }
+
+      function isValidURL(string) {
+        try {
+          new URL(string);
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function navigateTo(url, secure = true) {
+        if (!isValidURL(url)) {
+          // If the URL is invalid, redirect to the search engine with the query
+          url = `http://search.nnstatic.net/search?q=${encodeURIComponent(url)}`;
+        } else if (!url.startsWith('http')) {
+          // Otherwise, if the URL is valid but missing protocol, add it
+          url = (secure ? 'https://' : 'http://') + url;
+        }
+        browserFrame.src = url;
+        urlInput.value = url;
+        const tab = tabs[currentTab];
+        if (tab.currentIndex === -1 || tab.history[tab.currentIndex] !== url) {
+          tab.history.push(url);
+          tab.currentIndex++;
+        }
+        saveTabs();
+      }
+
+      function parseUrlParams() {
+        const params = new URLSearchParams(window.location.search);
+        const site = params.get('site');
+        const secure = params.get('secure') === 'true';
+        const id = params.get('id');
+        const settingsOpen = params.get('settingsopen') === 'True';
+        const darkModeOn = params.get('darkmode') === 'True';
+        if (site) {
+          navigateTo(site, secure);
+        }
+        if (id) {
+          const decodedId = atob(id);
+          uidDisplay.textContent = `UID: ${decodedId}`;
+        }
+        if (settingsOpen) {
+          settingsPopup.style.display = 'block';
+        }
+        if (darkModeOn) {
+          darkMode = true;
+          applyTheme();
+        }
+      }
+
+      function updateTabs() {
+        tabsContainer.innerHTML = '';
+        tabs.forEach((tab, index) => {
+          const tabElement = document.createElement('div');
+          tabElement.className = 'tab' + (index === currentTab ? ' active' : '');
+          tabElement.textContent = `Tab ${index + 1}`;
+          const deleteButton = document.createElement('span');
+          deleteButton.className = 'delete-tab';
+          deleteButton.textContent = 'X';
+          deleteButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (tabs.length > 1) {
+              tabs.splice(index, 1);
+              currentTab = Math.max(0, currentTab - 1);
+              saveTabs();
+              updateTabs();
+            }
+          });
+          tabElement.appendChild(deleteButton);
+          tabElement.addEventListener('click', () => switchTab(index));
+          tabsContainer.appendChild(tabElement);
+        });
+        if (tabs.length > 0 && tabs[currentTab].history.length > 0) {
+          browserFrame.src = tabs[currentTab].history[tabs[currentTab].currentIndex];
+          urlInput.value = tabs[currentTab].history[tabs[currentTab].currentIndex];
+        } else {
+          browserFrame.src = '';
+          urlInput.value = '';
+        }
+      }
+
+      function switchTab(index) {
+        currentTab = index;
+        updateTabs();
+      }
+
+      function updateBookmarks() {
+        bookmarksContainer.innerHTML = '';
+        bookmarks.forEach((url, index) => {
+          const bookmarkElement = document.createElement('span');
+          bookmarkElement.className = 'bookmark';
+          bookmarkElement.textContent = url;
+          const deleteBookmarkButton = document.createElement('span');
+          deleteBookmarkButton.className = 'delete-bookmark';
+          deleteBookmarkButton.textContent = 'X';
+          deleteBookmarkButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteBookmark(index);
+          });
+          bookmarkElement.appendChild(deleteBookmarkButton);
+          bookmarkElement.addEventListener('click', () => navigateTo(url));
+          bookmarksContainer.appendChild(bookmarkElement);
+        });
+      }
+
+      function deleteBookmark(index) {
+        bookmarks.splice(index, 1);
+        saveBookmarks();
+        updateBookmarks();
+      }
+
+      function saveTabs() {
+        localStorage.setItem('tabs', JSON.stringify(tabs));
+      }
+
+      function saveBookmarks() {
+        localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
+      }
+      document.getElementById('go-button').addEventListener('click', () => {
+        const url = urlInput.value;
+        navigateTo(url);
+      });
+      document.getElementById('bookmark-button').addEventListener('click', () => {
+        const url = urlInput.value;
+        if (!bookmarks.includes(url)) {
+          bookmarks.push(url);
+          saveBookmarks();
+          updateBookmarks();
+        }
+      });
+      document.getElementById('new-tab-button').addEventListener('click', () => {
+        tabs.push({
+          history: [],
+          currentIndex: -1
+        });
+        currentTab = tabs.length - 1;
+        saveTabs();
+        updateTabs();
+      });
+      document.getElementById('settings-button').addEventListener('click', () => {
+        settingsPopup.style.display = 'block';
+      });
+      document.getElementById('close-settings').addEventListener('click', () => {
+        settingsPopup.style.display = 'none';
+      });
+      document.getElementById('toggle-theme').addEventListener('click', () => {
+        darkMode = !darkMode;
+        colorfulMode = false;
+        applyTheme();
+      });
+      document.getElementById('toggle-color').addEventListener('click', () => {
+        colorfulMode = !colorfulMode;
+        applyTheme();
+      });
+      document.getElementById('reset-button').addEventListener('click', resetAllData);
+      parseUrlParams();
+      applyTheme();
+      updateTabs();
+      updateBookmarks();
+    </script>
+  </body>
+</html>
